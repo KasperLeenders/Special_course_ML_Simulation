@@ -1,4 +1,4 @@
-# Special_course_ML_Simulation
+# Special course: Machine Learning and Simulation
 
 ## Collection of scripts from bachelor project 
 ### Scripts used when training and predicting
