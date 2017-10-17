@@ -1,9 +1,10 @@
 # Special course: Machine Learning and Simulation
 
 ## Collection of scripts from bachelor project 
-### Scripts used when trying to solve Laplace (excluding other scripts created by Allan; GlobalVariablesSEM2D, StartupLaplaceSEM2D, LinearStandingwave1D etc.)
+### Scripts used when trying to solve Laplace 
 1) lap3.py    : Main script (Python)
 2) initParam  : Script used to get parameters used in Runge-Kutta loop (MatLab)
+3) (excluding other scripts created by Allan; GlobalVariablesSEM2D, StartupLaplaceSEM2D, LinearStandingwave1D etc.)
 
 ### Example of data sets (e.g. use to check code)
 1) laplaceTrainArchitectureNX61T500   : Training set with 61 nodes and 500 time step (csv file)
