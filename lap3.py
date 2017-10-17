@@ -33,10 +33,13 @@ eng = matlab.engine.start_matlab()
 # fix random seed for reproducibility
 seed = 7
 numpy.random.seed(seed)
+
+# Set up training and test data
 nox = 61
-notrain = 10000
-notest = 2000
-data = numpy.loadtxt("laplaceTrain10KI01.csv", delimiter=",")
+notrain = 500
+notest = 1000
+
+data = numpy.loadtxt("laplaceTrainArchitectureNX61T500.csv", delimiter=",")
 # split into input (X) and output (Y) variables
 X_train = data[:,0:notrain]
 X_train = numpy.transpose(X_train)
@@ -46,8 +49,8 @@ X_train = X_train.reshape(notrain, nox, 1).astype('float32')
 y_train = data[:,notrain:(2*notrain)]
 y_train = numpy.transpose(y_train)
 
-
-data2 = numpy.loadtxt("laplaceTest2000.csv", delimiter=",")
+data2 = numpy.loadtxt("laplaceTestArchitectureNX61T1KTmax20.csv", delimiter=",")
+print(data2.shape)
 # split into input (X) and output (Y) variables
 X_test = data2[:,0:notest]
 X_test = numpy.transpose(X_test)
@@ -57,57 +60,33 @@ X_test = X_test.reshape(notest, nox, 1).astype('float32')
 y_test = data2[:,notest:(notest*2)]
 y_test = numpy.transpose(y_test)
 
-def L3(y_true, y_pred):
-	diff = K.abs(y_true-y_pred)
-	return K.mean(K.pow(diff,3))
-
-def sin(x):
-	return K.sin(x)
-
-def cos(x):
-	return K.cos(x)
+print(y_test.shape)
 
 # Get x-values for plotting
 X = data[0:nox,(2*notrain)]
-#X = X.reshape(1,61)
+
+# Define the model
 def baseline_model():
 	model = Sequential()
-	model.add(Conv1D(250, 5, activation='sigmoid',input_shape=(nox,1)))
-	model.add(AveragePooling1D(2))
-	model.add(Conv1D(100, 3, activation='sigmoid'))
-	model.add(AveragePooling1D(2))
-	model.add(Dropout(0.1))
+	model.add(Conv1D(5, 7, activation='linear',input_shape=(nox,1), kernel_initializer='TruncatedNormal'))
+	model.add(AveragePooling1D(4))
+	model.add(Conv1D(2, 7 , activation='linear',kernel_initializer='TruncatedNormal'))
+	model.add(AveragePooling1D(4))
+	model.add(Dropout(0.2))
 	model.add(Flatten())
 	model.add(Dense(nox, activation='linear'))
-	model.compile(loss='mean_squared_error', optimizer='adam') #metrics=['mean_squared_error'])
+	model.compile(loss='mean_squared_error', optimizer='adagrad')
 	return model
 
-# build the model
-#model = KerasRegressor(build_fn=baseline_model(),verbose=0)
-
+# Build the model
 model = baseline_model()
 
 start = time.time()
-#stop = 10
-#val=[None]*stop
-#for q in range(0,stop):
-
-start = time.time()
 # Fit the model
-model.fit(X_train, y_train, epochs=100, batch_size=20,verbose=0)
+model.fit(X_train, y_train, epochs=100, batch_size=10,verbose=2)
 end = time.time()
 print("Time for training:")
 print(end-start)
-
-
-# Predict values for finer grid
-#out = model.predict(X_test)
-#print(out.shape)
-# Evaluate model
-#scores = model.evaluate(X_test, y_test)
-#print("Validation loss is:")
-#print(scores)
-#val[q] = scores
 
 ##################### Create Jacobian ###################################
 E = numpy.identity(nox)
@@ -134,31 +113,8 @@ plt.show()
 
 ##########################################################################
 
-
-'''
-	plt.figure(1)
-
-	plt.subplot(211)
-	plt.plot(X,y_test[1,:],'k',X,out[1,:],'b')
-
-	plt.subplot(212)
-	plt.plot(X,y_test[10,:],'k',X,out[10,:],'b')
-	plt.show()
-		
-	if q == stop:
-		break
-
-end = time.time()
-print("Total time is:")
-print(end - start)
-print("Average time is:")
-print((end - start)/stop)
-print("Average validation is:")
-print(numpy.mean(val))
-'''
-
-# Predict
-# Initialize
+# Predict forward in time
+# Set up parameters
 tid=0.0
 g = 9.81
 init_param = eng.initParam(tid,nargout=9)
@@ -172,7 +128,7 @@ Nk = numpy.float64(init_param[5])
 rk4a = numpy.float64(init_param[6])
 rk4b = numpy.float64(init_param[7])
 rk4c = numpy.float64(init_param[8])
-dt = Twave/100
+dt = (Twave*Tmax)/1000
 Nsteps = int(round((Tmax*Twave)/dt))
 dt = (Tmax*Twave)/Nsteps
 resE=E*0
@@ -182,11 +138,14 @@ resP=P*0
 resultw = []
 resultp = []
 resulte = []
+print('No steps:')
 print(Nsteps)
+print('Tmax:')
 print(Tmax)
+print('dt:')
 print(dt)
 start = time.time()
-#loop
+#Start predicting
 for tstep in range(0,Nsteps):
 	for INTRK in range(0,5):
 		P = P.reshape(1,nox,1)
@@ -214,12 +173,7 @@ for tstep in range(0,Nsteps):
 
 		E = E + rk4b[0][INTRK]*resE		
 		P = P + rk4b[0][INTRK]*resP
-		
-		#plt.figure(1)
 
-		#plt.plot(X,W,'r',X,P,'b',X,E,'g')
-		#plt.show()
-	
 	resultw.append(W)
 	resultp.append(P)
 	resulte.append(E)	
@@ -230,6 +184,7 @@ di = end-start
 print("Time for predicting:")
 print(di)
 
+# Rearrange data to create plots
 resw = numpy.asarray(resultw)
 resp = numpy.asarray(resultp)
 rese = numpy.asarray(resulte)
@@ -237,20 +192,27 @@ W = resw.reshape(Nsteps,nox)
 P = resp.reshape(Nsteps,nox)
 E = rese.reshape(Nsteps,nox)
 
+print('W.shape:')
 print(W.shape)
+print('E.shape:')
 print(E.shape)
+print('P.shape:')
 print(P.shape)
+print('y_test.shape:')
 print(y_test.shape)
 
-Y = numpy.arange(0, (tid), dt)
+# Create data points for grid
+Y = numpy.arange(0, (tid-dt), dt)
 X, Y = numpy.meshgrid(X,Y)
 
 
+
+print('X.shape:')
 print(X.shape)
+print('Y.shape:')
 print(Y.shape)
 
-#print(tid)
-
+# Export obtained data
 file1 = open('outdata01.csv','wt')
 file2 = open('outdata02.csv','wt')
 file3 = open('outdata03.csv','wt')
@@ -269,14 +231,18 @@ file2.close()
 file3.close()
 file4.close()
 
-
+# Determine error of predictions
 fejl = numpy.absolute(W-y_test)
 #print(fejl.shape)
 frofejl = LA.norm(fejl)
 inffejl = fejl.max()
+print('Infinity norm:')
 print(inffejl)
+print('Frobenius norm:')
 print(frofejl)
 
+# Create figures of results
+# PLot Error
 fig01 = plt.figure(1)
 ax01 = fig01.gca(projection='3d')
 ax01.set_xlabel('X')
@@ -297,7 +263,7 @@ plt.show()
 
 
 
-
+# Plot target function, W
 fig02 = plt.figure(2)
 ax02 = fig02.gca(projection='3d')
 
@@ -313,6 +279,7 @@ fig02.colorbar(surf02, shrink=0.5, aspect=5)
 plt.show()
 
 
+# Plot approximated W
 fig02 = plt.figure(2)
 ax02 = fig02.gca(projection='3d')
 
@@ -328,6 +295,7 @@ fig02.colorbar(surf02, shrink=0.5, aspect=5)
 plt.show()
 
 
+# Plot E
 fig3 = plt.figure(3)
 ax3 = fig3.gca(projection='3d')
 
@@ -342,6 +310,7 @@ fig3.colorbar(surf3, shrink=0.5, aspect=5)
 
 plt.show()
 
+# Plot P
 fig4 = plt.figure(3)
 ax4 = fig4.gca(projection='3d')
 
@@ -355,3 +324,4 @@ fig4.colorbar(surf4, shrink=0.5, aspect=5)
 
 
 plt.show()
+
